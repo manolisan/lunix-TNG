@@ -4,8 +4,8 @@
  * Implementation of character devices
  * for Lunix:TNG
  *
- * < Your name here >
- *
+ * Stratis Tsirtsis < stsirtsis@gmail.com >
+ * Manolis Anastasiou < manolisan28@gmail.com >
  */
 
 #include <linux/mm.h>
@@ -169,7 +169,7 @@ static int lunix_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
 
 static struct file_operations lunix_chrdev_fops =
 {
-        .owner          = THIS_MODULE,
+  .owner    = THIS_MODULE,
 	.open           = lunix_chrdev_open,
 	.release        = lunix_chrdev_release,
 	.read           = lunix_chrdev_read,
