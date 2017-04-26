@@ -90,6 +90,8 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 static int lunix_chrdev_open(struct inode *inode, struct file *filp)
 {
 	/* Declarations */
+	struct lunix_chrdev_state_struct* private_ptr;
+	unsigned int minor_num;
 	/* ? */
 	int ret;
 
@@ -102,6 +104,29 @@ static int lunix_chrdev_open(struct inode *inode, struct file *filp)
 	 * Associate this open file with the relevant sensor based on
 	 * the minor number of the device node [/dev/sensor<NO>-<TYPE>]
 	 */
+
+	 // find minor node of the device, to be open
+	 minor_num = iminor(inode);
+
+	 // alocate space for lunix sensor state struct
+	 private_ptr = kmalloc(sizeof(struct lunix_chrdev_state_struct), GFP_KERNEL);
+	 if(!private_ptr){
+		 debug("failed to allocate memory for private data (lunix_chrdev_state_struct)\n");
+		 goto out;
+	 }
+
+	 // type of the device: Batt, light, temp
+	 private_ptr->type = minor_num % 8;
+	 if (minor_num > 2 || minor_num < 0) {
+		 debug("Not proper device measurement. The number is %d.\n", minor_num);
+ 		 goto out;
+	 }
+
+	 // connection with the proper device. 1-16
+	 private_ptr->sensor = &lunix_sensors[minor_num / 8];
+
+	 //save lunix sensor state to file private data field
+	 filp->private_data = private_ptr;
 
 	/* Allocate a new Lunix character device private state structure */
 	/* ? */
