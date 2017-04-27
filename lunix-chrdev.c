@@ -117,10 +117,15 @@ static int lunix_chrdev_open(struct inode *inode, struct file *filp)
 
 	 // type of the device: Batt, light, temp
 	 private_ptr->type = minor_num % 8;
-	 if (minor_num > 2 || minor_num < 0) {
-		 debug("Not proper device measurement. The number is %d.\n", minor_num);
+	 if (private_ptr->type > 2 || private_ptr->type < 0) {
+		 debug("Not proper device measurement. The number is %d.\n", private_ptr->type);
  		 goto out;
 	 }
+
+	 // initialize buf lim,timestamp and semaphore
+	 private_ptr->buf_lim = 0;
+	 private_ptr->buf_timestamp = 0;
+	 sema_init(&(private_ptr->lock), 0)
 
 	 // connection with the proper device. 1-16
 	 private_ptr->sensor = &lunix_sensors[minor_num / 8];
