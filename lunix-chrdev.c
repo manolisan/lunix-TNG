@@ -125,7 +125,7 @@ static int lunix_chrdev_open(struct inode *inode, struct file *filp)
 	 // initialize buf lim,timestamp and semaphore
 	 private_ptr->buf_lim = 0;
 	 private_ptr->buf_timestamp = 0;
-	 sema_init(&(private_ptr->lock), 0)
+	 sema_init(&(private_ptr->lock), 0);
 
 	 // connection with the proper device. 1-16
 	 private_ptr->sensor = &lunix_sensors[minor_num / 8];
@@ -166,6 +166,9 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 	WARN_ON(!sensor);
 
 	/* Lock? */
+	if(down_interruptible(&state->lock)){
+		return -ERESTARTSYS;
+	}
 	/*
 	 * If the cached character device state needs to be
 	 * updated by actual sensor data (i.e. we need to report
@@ -174,6 +177,14 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 	if (*f_pos == 0) {
 		while (lunix_chrdev_state_update(state) == -EAGAIN) {
 			/* ? */
+			up(&state->lock);
+			if(wait_event_interruptible(sensor->wq, state->buf_lim != *f_pos) ){
+				return -ERESTARTSYS;
+			}
+
+			if(down_interruptible(&state->lock)){
+				return -ERESTARTSYS;
+			}
 			/* The process needs to sleep */
 			/* See LDD3, page 153 for a hint */
 		}
@@ -183,12 +194,29 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 	/* ? */
 
 	/* Determine the number of cached bytes to copy to userspace */
+	if (state->buf_lim > *f_pos){
+		ret = cnt < state->buf_lim - *f_pos ? cnt : state->buf_lim - *f_pos;
+	} else {
+		ret = cnt < 20 - *f_pos ? cnt : 20 - *f_pos;
+	}
+
+	// copy to usr space
+	if (copy_to_user(usrbuf, *f_pos, ret)){
+		up(&state->lock);
+		return -EFAULT;
+	}
+
+	*f_pos += ret;
 	/* ? */
 
 	/* Auto-rewind on EOF mode? */
+	if(*f_pos == 20){
+		*f_pos = 0;
+	}
 	/* ? */
 out:
 	/* Unlock? */
+	up(&state->lock);
 	return ret;
 }
 
