@@ -56,19 +56,31 @@ static int lunix_chrdev_state_needs_refresh(struct lunix_chrdev_state_struct *st
 static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 {
 	struct lunix_sensor_struct *sensor;
+	uint32_t value, timestamp;
+	long formated_data;
+
+	sensor = state->sensor;
+	WARN_ON(!sensor);
 
 	debug("leaving\n");
 
+	spin_lock(&sensor->lock);
 	/*
 	 * Grab the raw data quickly, hold the
 	 * spinlock for as little as possible.
 	 */
 	/* ? */
+	timestamp = sensor->msr_data[state->type]->last_update;
+	value = sensor->msr_data[state->type]->values[0];
 	/* Why use spinlocks? See LDD3, p. 119 */
+	spin_unlock(&sensor->lock);
 
 	/*
 	 * Any new data available?
 	 */
+	 if (timestamp <= state->buf_timestamp){
+		 // no change
+	 } else {
 	/* ? */
 
 	/*
@@ -77,6 +89,20 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 	 */
 
 	/* ? */
+	if (state->type == 0){
+			formated_data = lookup_voltage[value];
+   } else if (state->type == 1){
+		 	formated_data = lookup_temperature[value];
+	 } else if (state->type == 2){
+		  formated_data = lookup_light[value];
+	 } else {
+		 //error
+		 // formated_data?
+	 }
+
+	 state->buf_data[state->buf_lim] = formated_data;
+	 state->buf_lim += 4;
+   }
 
 	debug("leaving\n");
 	return 0;
@@ -201,7 +227,7 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 	}
 
 	// copy to usr space
-	if (copy_to_user(usrbuf, *f_pos, ret)){
+	if (copy_to_user(usrbuf, f_pos, ret)){
 		up(&state->lock);
 		return -EFAULT;
 	}
