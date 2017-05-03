@@ -89,6 +89,7 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 	 */
 
 	/* ? */
+	printk("DEBUG: Index value: %d !", value);
 	if (state->type == 0){
 			formated_data = lookup_voltage[value];
    } else if (state->type == 1){
@@ -99,8 +100,15 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 		 //error
 		 // formated_data?
 	 }
-
-	 state->buf_data[state->buf_lim] = formated_data;
+	 printk("DEBUG: Formated_data: %d !", formated_data);
+	 state->buf_data[state->buf_lim + 3] = (int) ((formated_data >> 24) & 0xFF);
+	 state->buf_data[state->buf_lim + 2] = (int) ((formated_data >> 16) & 0xFF);
+	 state->buf_data[state->buf_lim + 1] = (int) ((formated_data >> 8) & 0xFF);
+	 state->buf_data[state->buf_lim ] = (int) (formated_data & 0xFF);
+	 printk("DEBUG: Formated_data after assignment: %d !", state->buf_data[state->buf_lim] );
+	 printk("DEBUG: Formated_data after assignment: %d !", state->buf_data[state->buf_lim + 1] );
+	 printk("DEBUG: Formated_data after assignment: %d !", state->buf_data[state->buf_lim + 2] );
+	 printk("DEBUG: Formated_data after assignment: %d !", state->buf_data[state->buf_lim + 3] );
 	 state->buf_lim += 4;
    }
 
@@ -191,18 +199,25 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 	sensor = state->sensor;
 	WARN_ON(!sensor);
 
+	printk("DEBUG: We are starting the read call!\n");
+
 	/* Lock? */
+/*
 	if(down_interruptible(&state->lock)){
 		return -ERESTARTSYS;
 	}
+	*/
+	printk("DEBUG: f_pos: %d !\n", *f_pos);
 	/*
 	 * If the cached character device state needs to be
 	 * updated by actual sensor data (i.e. we need to report
 	 * on a "fresh" measurement, do so
 	 */
 	if (*f_pos == 0) {
+		printk("DEBUG: We are in the fabulous if\n");
 		while (lunix_chrdev_state_update(state) == -EAGAIN) {
 			/* ? */
+			printk("DEBUG: Let's sleep, no data available\n");
 			up(&state->lock);
 			if(wait_event_interruptible(sensor->wq, state->buf_lim != *f_pos) ){
 				return -ERESTARTSYS;
@@ -227,7 +242,7 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 	}
 
 	// copy to usr space
-	if (copy_to_user(usrbuf, f_pos, ret)){
+	if (copy_to_user(usrbuf, &state->buf_data[*f_pos], ret)){
 		up(&state->lock);
 		return -EFAULT;
 	}
