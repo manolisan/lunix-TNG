@@ -277,14 +277,10 @@ printk("DEBUG: Initial f_pos: %d buf_lim: %d\n", *f_pos, state->buf_lim);
 if (state->buf_lim > *f_pos){
 	ret = cnt < state->buf_lim - *f_pos ? cnt : state->buf_lim - *f_pos;
 }
-else if (state->buf_lim < *f_pos){
+else {
 	ret = cnt < 20 - *f_pos ? cnt : 20 - *f_pos;
 }
-else{
-	*f_pos = 0;
-	ret = 0;
-	goto out;
-}
+
 printk("DEBUG: Calculated count: %d\n", ret);
 
 // copy to usr space
