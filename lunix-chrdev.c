@@ -204,6 +204,8 @@ static int lunix_chrdev_open(struct inode *inode, struct file *filp)
 static int lunix_chrdev_release(struct inode *inode, struct file *filp)
 {
 	/* ? */
+	WARN_ON(!filp->private_data);
+	kfree(filp->private_data);
 	return 0;
 }
 
