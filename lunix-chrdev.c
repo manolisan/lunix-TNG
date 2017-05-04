@@ -46,7 +46,7 @@ static int lunix_chrdev_state_needs_refresh(struct lunix_chrdev_state_struct *st
 	/* ? */
 
 	timestamp = sensor->msr_data[state->type]->last_update;
-	if (timestamp > state->buf_timestamp){
+	if (timestamp != state->buf_timestamp){
 		// state needs refresh
 		return 1;
 	} else {
@@ -133,7 +133,12 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 			left++;
 			right--;
 		}
-
+		right = state->buf_lim+20;
+		state->buf_data[right%20] = state->buf_data[(right-1)%20];
+		state->buf_data[(right-1)%20] = state->buf_data[(right-2)%20];
+		state->buf_data[(right-2)%20] = state->buf_data[(right-3)%20];
+		state->buf_data[(right-3)%20] = '.';
+		state->buf_lim = (state->buf_lim+1) % 20;
 	state->buf_data[state->buf_lim] = '\n';
 	state->buf_lim = (state->buf_lim+1) % 20;
 	state->buf_timestamp = timestamp;
