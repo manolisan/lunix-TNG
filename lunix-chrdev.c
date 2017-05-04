@@ -78,8 +78,10 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 	/*
 	* Any new data available?
 	*/
-	if (timestamp <= state->buf_timestamp){
+	printk("DEBUG: Timestamp: %d, Private sate stamp: %d \n", timestamp, state->buf_timestamp);
+	if (timestamp == state->buf_timestamp){
 		// no change
+		return -EAGAIN;
 	} else {
 		/* ? */
 
@@ -124,9 +126,11 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 			left++;
 			right--;
 		}
-	}
+
 	state->buf_data[state->buf_lim] = '\n';
 	state->buf_lim = (state->buf_lim+1) % 20;
+	state->buf_timestamp = timestamp;
+}
 
 	debug("leaving\n");
 	return 0;
@@ -175,7 +179,7 @@ static int lunix_chrdev_open(struct inode *inode, struct file *filp)
 	// initialize buf lim,timestamp and semaphore
 	private_ptr->buf_lim = 0;
 	private_ptr->buf_timestamp = 0;
-	sema_init(&(private_ptr->lock), 0);
+	sema_init(&(private_ptr->lock), 1);
 
 	// connection with the proper device. 1-16
 	private_ptr->sensor = &lunix_sensors[minor_num / 8];
@@ -220,9 +224,9 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 
 	/* Lock? */
 
-	/*if(down_interruptible(&state->lock)){
+	if(down_interruptible(&(state->lock))){
 	return -ERESTARTSYS;
-}*/
+}
 
 printk("DEBUG: Initial f_pos: %d buf_lim: %d\n", *f_pos, state->buf_lim);
 /*
@@ -236,9 +240,12 @@ printk("DEBUG: Initial f_pos: %d buf_lim: %d\n", *f_pos, state->buf_lim);
 		/* ? */
 		printk("DEBUG: Let's sleep, no data available\n");
 		up(&state->lock);
-		if(wait_event_interruptible(sensor->wq, state->buf_lim != *f_pos) ){
+		if(wait_event_interruptible(sensor->wq, true) ){
+		//if(wait_event_interruptible(sensor->wq, state->buf_lim != *f_pos) ){
 			return -ERESTARTSYS;
 		}
+
+		printk("DEBUG: I've just wake up!\n");
 
 		if(down_interruptible(&state->lock)){
 			return -ERESTARTSYS;
