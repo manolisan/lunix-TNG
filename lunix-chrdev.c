@@ -71,25 +71,26 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 
 	debug("leaving\n");
 
-	spin_lock(&sensor->lock);
+	printk("DEBUG: Timestamp: %d, Private sate stamp: %d \n", timestamp, state->buf_timestamp);
+	if (lunix_chrdev_state_needs_refresh(state) == 0){
+		// no change
+		return -EAGAIN;
+	} else {
+
 	/*
 	* Grab the raw data quickly, hold the
 	* spinlock for as little as possible.
 	*/
 	/* ? */
-	timestamp = sensor->msr_data[state->type]->last_update;
-	value = sensor->msr_data[state->type]->values[0];
+	  spin_lock(&sensor->lock);
+		timestamp = sensor->msr_data[state->type]->last_update;
+		value = sensor->msr_data[state->type]->values[0];
 	/* Why use spinlocks? See LDD3, p. 119 */
-	spin_unlock(&sensor->lock);
+		spin_unlock(&sensor->lock);
 
 	/*
 	* Any new data available?
 	*/
-	printk("DEBUG: Timestamp: %d, Private sate stamp: %d \n", timestamp, state->buf_timestamp);
-	if (timestamp == state->buf_timestamp){
-		// no change
-		return -EAGAIN;
-	} else {
 		/* ? */
 
 		/*
