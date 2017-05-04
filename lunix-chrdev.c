@@ -40,12 +40,19 @@ struct cdev lunix_chrdev_cdev;
 static int lunix_chrdev_state_needs_refresh(struct lunix_chrdev_state_struct *state)
 {
 	struct lunix_sensor_struct *sensor;
+	uint32_t timestamp;
 
 	WARN_ON ( !(sensor = state->sensor));
 	/* ? */
 
-	/* The following return is bogus, just for the stub to compile */
-	return 0; /* ? */
+	timestamp = sensor->msr_data[state->type]->last_update;
+	if (timestamp > state->buf_timestamp){
+		// state needs refresh
+		return 1;
+	} else {
+		// no need for refresh
+		return 0;
+	}
 }
 
 /*
@@ -240,7 +247,7 @@ printk("DEBUG: Initial f_pos: %d buf_lim: %d\n", *f_pos, state->buf_lim);
 		/* ? */
 		printk("DEBUG: Let's sleep, no data available\n");
 		up(&state->lock);
-		if(wait_event_interruptible(sensor->wq, true) ){
+		if(wait_event_interruptible(sensor->wq, lunix_chrdev_state_needs_refresh(state)) ){
 		//if(wait_event_interruptible(sensor->wq, state->buf_lim != *f_pos) ){
 			return -ERESTARTSYS;
 		}
