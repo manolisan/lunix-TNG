@@ -77,20 +77,20 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 		return -EAGAIN;
 	} else {
 
-	/*
-	* Grab the raw data quickly, hold the
-	* spinlock for as little as possible.
-	*/
-	/* ? */
-	  spin_lock(&sensor->lock);
+		/*
+		* Grab the raw data quickly, hold the
+		* spinlock for as little as possible.
+		*/
+		/* ? */
+		spin_lock(&sensor->lock);
 		timestamp = sensor->msr_data[state->type]->last_update;
 		value = sensor->msr_data[state->type]->values[0];
-	/* Why use spinlocks? See LDD3, p. 119 */
+		/* Why use spinlocks? See LDD3, p. 119 */
 		spin_unlock(&sensor->lock);
 
-	/*
-	* Any new data available?
-	*/
+		/*
+		* Any new data available?
+		*/
 		/* ? */
 
 		/*
@@ -140,10 +140,10 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 		state->buf_data[(right-2)%20] = state->buf_data[(right-3)%20];
 		state->buf_data[(right-3)%20] = '.';
 		state->buf_lim = (state->buf_lim+1) % 20;
-	state->buf_data[state->buf_lim] = '\n';
-	state->buf_lim = (state->buf_lim+1) % 20;
-	state->buf_timestamp = timestamp;
-}
+		state->buf_data[state->buf_lim] = '\n';
+		state->buf_lim = (state->buf_lim+1) % 20;
+		state->buf_timestamp = timestamp;
+	}
 
 	debug("leaving\n");
 	return 0;
@@ -240,23 +240,27 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 	/* Lock? */
 
 	if(down_interruptible(&(state->lock))){
-	return -ERESTARTSYS;
-}
+		return -ERESTARTSYS;
+	}
 
-printk("DEBUG: Initial f_pos: %d buf_lim: %d\n", *f_pos, state->buf_lim);
-/*
-* If the cached character device state needs to be
-* updated by actual sensor data (i.e. we need to report
-* on a "fresh" measurement, do so
-*/
-//if (*f_pos == 0) {
+	printk("DEBUG: Initial f_pos: %d buf_lim: %d\n", *f_pos, state->buf_lim);
+	/*
+	* If the cached character device state needs to be
+	* updated by actual sensor data (i.e. we need to report
+	* on a "fresh" measurement, do so
+	*/
+	//if (*f_pos == 0) {
+
+	/***********************************
+		 Συνθήκη για f_pos != buf_lim
+	************************************/
 	printk("DEBUG: We are in the fabulous if\n");
 	while (lunix_chrdev_state_update(state) == -EAGAIN) {
 		/* ? */
 		printk("DEBUG: Let's sleep, no data available\n");
 		up(&state->lock);
 		if(wait_event_interruptible(sensor->wq, lunix_chrdev_state_needs_refresh(state)) ){
-		//if(wait_event_interruptible(sensor->wq, state->buf_lim != *f_pos) ){
+			//if(wait_event_interruptible(sensor->wq, state->buf_lim != *f_pos) ){
 			return -ERESTARTSYS;
 		}
 
@@ -268,47 +272,47 @@ printk("DEBUG: Initial f_pos: %d buf_lim: %d\n", *f_pos, state->buf_lim);
 		/* The process needs to sleep */
 		/* See LDD3, page 153 for a hint */
 	}
-//}
+	//}
 
-/* End of file */
-/* ? */
+	/* End of file */
+	/* ? */
 
-/* Determine the number of cached bytes to copy to userspace */
-if (state->buf_lim > *f_pos){
-	ret = cnt < state->buf_lim - *f_pos ? cnt : state->buf_lim - *f_pos;
-}
-else {
-	ret = cnt < 20 - *f_pos ? cnt : 20 - *f_pos;
-}
+	/* Determine the number of cached bytes to copy to userspace */
+	if (state->buf_lim > *f_pos){
+		ret = cnt < state->buf_lim - *f_pos ? cnt : state->buf_lim - *f_pos;
+	}
+	else {
+		ret = cnt < 20 - *f_pos ? cnt : 20 - *f_pos;
+	}
 
-printk("DEBUG: Calculated count: %d\n", ret);
+	printk("DEBUG: Calculated count: %d\n", ret);
 
-// copy to usr space
-printk("DEBUG: About to copy to user.\n");
-int i;
-for(i=0; i<ret; i++){
-	printk("DEBUG: Data byte %d: %c\n", i, state->buf_data[*f_pos + i]);
-}
+	// copy to usr space
+	printk("DEBUG: About to copy to user.\n");
+	int i;
+	for(i=0; i<ret; i++){
+		printk("DEBUG: Data byte %d: %c\n", i, state->buf_data[*f_pos + i]);
+	}
 
-if (copy_to_user(usrbuf, &state->buf_data[*f_pos], ret)){
+	if (copy_to_user(usrbuf, &state->buf_data[*f_pos], ret)){
+		up(&state->lock);
+		return -EFAULT;
+	}
+
+	*f_pos += ret;
+	printk("DEBUG: Changed f_pos. New value: %d\n", *f_pos);
+	/* ? */
+
+	/* Auto-rewind on EOF mode? */
+	if(*f_pos == 20){
+		*f_pos = 0;
+	}
+	printk("DEBUG: Rewinded f_pos. Final f_pos value: %d Final buf_lim value: %d\n", *f_pos, state->buf_lim);
+	/* ? */
+	out:
+	/* Unlock? */
 	up(&state->lock);
-	return -EFAULT;
-}
-
-*f_pos += ret;
-printk("DEBUG: Changed f_pos. New value: %d\n", *f_pos);
-/* ? */
-
-/* Auto-rewind on EOF mode? */
-if(*f_pos == 20){
-	*f_pos = 0;
-}
-printk("DEBUG: Rewinded f_pos. Final f_pos value: %d Final buf_lim value: %d\n", *f_pos, state->buf_lim);
-/* ? */
-out:
-/* Unlock? */
-up(&state->lock);
-return ret;
+	return ret;
 }
 
 static int lunix_chrdev_mmap(struct file *filp, struct vm_area_struct *vma)
