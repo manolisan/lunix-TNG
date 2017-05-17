@@ -43,7 +43,6 @@ static int lunix_chrdev_state_needs_refresh(struct lunix_chrdev_state_struct *st
 	uint32_t timestamp;
 
 	WARN_ON ( !(sensor = state->sensor));
-	/* ? */
 
 	timestamp = sensor->msr_data[state->type]->last_update;
 	if (timestamp != state->buf_timestamp){
@@ -71,6 +70,9 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 
 	debug("leaving\n");
 
+	/*
+	* Any new data available?
+	*/
 	printk("DEBUG: Timestamp: %d, Private sate stamp: %d \n", timestamp, state->buf_timestamp);
 	if (lunix_chrdev_state_needs_refresh(state) == 0){
 		// no change
@@ -81,7 +83,6 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 		* Grab the raw data quickly, hold the
 		* spinlock for as little as possible.
 		*/
-		/* ? */
 		spin_lock(&sensor->lock);
 		timestamp = sensor->msr_data[state->type]->last_update;
 		value = sensor->msr_data[state->type]->values[0];
@@ -89,16 +90,9 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 		spin_unlock(&sensor->lock);
 
 		/*
-		* Any new data available?
-		*/
-		/* ? */
-
-		/*
 		* Now we can take our time to format them,
 		* holding only the private state semaphore
 		*/
-
-		/* ? */
 		printk("UPD_DEBUG: Index value: %d !", value);
 		if (state->type == 0){
 			formated_data = lookup_voltage[value];
@@ -108,10 +102,11 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 			formated_data = lookup_light[value];
 		} else {
 			//error
-			// formated_data?
+			return -EFAULT;
 		}
 		printk("UPD_DEBUG: Formated_data: %d !", formated_data);
 
+		// Convert formated data to a sequence of char bytes
 		long digit, restnum = formated_data;
 		int old_buf_lim = state->buf_lim;
 		int num_of_digits = 0;
@@ -167,11 +162,6 @@ static int lunix_chrdev_open(struct inode *inode, struct file *filp)
 	if ((ret = nonseekable_open(inode, filp)) < 0)
 	goto out;
 
-	/*
-	* Associate this open file with the relevant sensor based on
-	* the minor number of the device node [/dev/sensor<NO>-<TYPE>]
-	*/
-
 	// find minor node of the device, to be open
 	minor_num = iminor(inode);
 
@@ -200,8 +190,6 @@ static int lunix_chrdev_open(struct inode *inode, struct file *filp)
 	//save lunix sensor state to file private data field
 	filp->private_data = private_ptr;
 
-	/* Allocate a new Lunix character device private state structure */
-	/* ? */
 	out:
 	debug("leaving, with ret = %d\n", ret);
 	return ret;
@@ -237,30 +225,18 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 
 	printk("DEBUG: We are starting the read call!\n");
 
-	/* Lock? */
+	/* Lock */
 
 	if(down_interruptible(&(state->lock))){
 		return -ERESTARTSYS;
 	}
 
 	printk("DEBUG: Initial f_pos: %d buf_lim: %d\n", *f_pos, state->buf_lim);
-	/*
-	* If the cached character device state needs to be
-	* updated by actual sensor data (i.e. we need to report
-	* on a "fresh" measurement, do so
-	*/
-	//if (*f_pos == 0) {
 
-	/***********************************
-		 Συνθήκη για f_pos != buf_lim
-	************************************/
-	printk("DEBUG: We are in the fabulous if\n");
 	while (lunix_chrdev_state_update(state) == -EAGAIN && state->buf_lim == *f_pos) {
-		/* ? */
 		printk("DEBUG: Let's sleep, no data available\n");
 		up(&state->lock);
 		if(wait_event_interruptible(sensor->wq, lunix_chrdev_state_needs_refresh(state) && state->buf_lim == *f_pos) ){
-			//if(wait_event_interruptible(sensor->wq, state->buf_lim != *f_pos) ){
 			return -ERESTARTSYS;
 		}
 
@@ -269,13 +245,7 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 		if(down_interruptible(&state->lock)){
 			return -ERESTARTSYS;
 		}
-		/* The process needs to sleep */
-		/* See LDD3, page 153 for a hint */
 	}
-	//}
-
-	/* End of file */
-	/* ? */
 
 	/* Determine the number of cached bytes to copy to userspace */
 	if (state->buf_lim > *f_pos){
@@ -301,14 +271,12 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 
 	*f_pos += ret;
 	printk("DEBUG: Changed f_pos. New value: %d\n", *f_pos);
-	/* ? */
 
 	/* Auto-rewind on EOF mode? */
 	if(*f_pos == 20){
 		*f_pos = 0;
 	}
 	printk("DEBUG: Rewinded f_pos. Final f_pos value: %d Final buf_lim value: %d\n", *f_pos, state->buf_lim);
-	/* ? */
 	out:
 	/* Unlock? */
 	up(&state->lock);
