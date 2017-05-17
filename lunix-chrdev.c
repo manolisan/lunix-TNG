@@ -255,11 +255,11 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 		 Συνθήκη για f_pos != buf_lim
 	************************************/
 	printk("DEBUG: We are in the fabulous if\n");
-	while (lunix_chrdev_state_update(state) == -EAGAIN) {
+	while (lunix_chrdev_state_update(state) == -EAGAIN && state->buf_lim == *f_pos) {
 		/* ? */
 		printk("DEBUG: Let's sleep, no data available\n");
 		up(&state->lock);
-		if(wait_event_interruptible(sensor->wq, lunix_chrdev_state_needs_refresh(state)) ){
+		if(wait_event_interruptible(sensor->wq, lunix_chrdev_state_needs_refresh(state) && state->buf_lim == *f_pos) ){
 			//if(wait_event_interruptible(sensor->wq, state->buf_lim != *f_pos) ){
 			return -ERESTARTSYS;
 		}
