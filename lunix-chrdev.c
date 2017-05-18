@@ -83,7 +83,7 @@ static int lunix_chrdev_state_update(struct lunix_chrdev_state_struct *state)
 		* Grab the raw data quickly, hold the
 		* spinlock for as little as possible.
 		*/
-		spin_lock(&sensor->lock);
+		spin_lock_irq(&sensor->lock);
 		timestamp = sensor->msr_data[state->type]->last_update;
 		value = sensor->msr_data[state->type]->values[0];
 		/* Why use spinlocks? See LDD3, p. 119 */
@@ -236,7 +236,7 @@ static ssize_t lunix_chrdev_read(struct file *filp, char __user *usrbuf, size_t 
 	while (lunix_chrdev_state_update(state) == -EAGAIN && state->buf_lim == *f_pos) {
 		printk("DEBUG: Let's sleep, no data available\n");
 		up(&state->lock);
-		if(wait_event_interruptible(sensor->wq, lunix_chrdev_state_needs_refresh(state) && state->buf_lim == *f_pos) ){
+		if(wait_event_interruptible(sensor->wq, lunix_chrdev_state_needs_refresh(state) && state->buf_lim == *f_pos)){
 			return -ERESTARTSYS;
 		}
 
